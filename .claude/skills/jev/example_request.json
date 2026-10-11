@@ -1,0 +1,37 @@
+{
+  "state": {
+    "email": "Subject: Pricing for 40 seats?\n\nHi there,\n\nI'm the Head of Operations at Northwind Logistics (about 300 employees). We've been trialing your scheduling tool with a small team for two weeks and they love it. We'd like to roll it out to 40 dispatchers before our peak season starts in November. Could you send pricing for 40 seats and let me know if you offer annual billing? Happy to jump on a call this week if that's easier.\n\nThanks,\nDana Reyes\nHead of Operations, Northwind Logistics"
+  },
+  "questions": {
+    "lead_quality": {
+      "type": "score",
+      "instructions": "How promising is the sender of `email` as a sales lead?",
+      "criteria": [
+        "Not a lead: no buying intent or not a potential customer",
+        "Weak lead: vague interest, no budget, timeline or decision maker",
+        "Promising lead: clear interest but missing timeline, size or authority",
+        "Hot lead: clear intent, a concrete deal size, a timeline and a decision maker"
+      ]
+    },
+    "email_type": {
+      "type": "choice",
+      "instructions": "What kind of email is `email`?",
+      "criteria": {
+        "pricing_request": "Asks for a quote, prices or billing options",
+        "demo_request": "Asks for a product demo or trial",
+        "support_issue": "Reports a problem with the product",
+        "partnership": "Proposes a partnership, reseller or integration deal",
+        "cold_outreach": "Unsolicited pitch trying to sell something to us",
+        "spam": "Irrelevant, automated or junk message"
+      }
+    },
+    "needs_personal_reply": {
+      "type": "noul",
+      "instructions": "Does `email` need a personal reply written by a person rather than an automated or template response?",
+      "criteria": {
+        "true": "The sender asks specific questions or offers a call, and a canned reply would lose the deal or the relationship",
+        "false": "A standard template or automated reply fully answers it"
+      }
+    }
+  }
+}
