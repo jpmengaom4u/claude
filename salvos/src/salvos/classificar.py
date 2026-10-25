@@ -63,6 +63,13 @@ def classificar_pendentes(bib: Biblioteca, ia: ClienteIA, modelo: str) -> Result
                 break
             except ErroIA:
                 continue
+            # O usuário pode ter movido o post na página enquanto a IA pensava.
+            atual = bib.obter(post.shortcode)
+            if atual.nicho_manual:
+                atual.etapas["classificado"] = True
+                bib.salvar(atual)
+                continue
+            post = atual
             if escolha in opcoes:
                 post.nicho, post.revisar = escolha, confianca < LIMIAR_CONFIANCA
             else:

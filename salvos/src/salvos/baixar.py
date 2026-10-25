@@ -44,6 +44,10 @@ class FonteSalvos(Protocol):
 class ResultadoDownload:
     novos: int
     pausado: bool
+    falhas: int = 0
+
+
+MAX_FALHAS_SEGUIDAS = 3
 
 
 def _gravar(bib: Biblioteca, fonte: FonteSalvos, remoto: PostRemoto) -> None:
@@ -77,27 +81,49 @@ def sincronizar_downloads(
     completo: bool = False,
     limite: int | None = None,
     espera: Callable[[float], None] = time.sleep,
+    aviso: Callable[[str], None] = print,
 ) -> ResultadoDownload:
+    """Baixa os salvos novos.
+
+    A parada após N posts conhecidos só vale depois que uma varredura chegou ao
+    fim da lista de salvos; antes disso, cada execução continua o backlog.
+    """
     maximo = limite or cfg.limite
-    novos = 0
-    conhecidos_seguidos = 0
+    estado = bib.estado()
+    parar_em_conhecidos = estado["varredura_completa"] and not completo
+    novos = falhas = falhas_seguidas = conhecidos_seguidos = 0
     try:
         for remoto in fonte.iterar():
             if bib.existe(remoto.shortcode):
                 conhecidos_seguidos += 1
-                if not completo and conhecidos_seguidos >= cfg.parada_conhecidos:
+                if parar_em_conhecidos and conhecidos_seguidos >= cfg.parada_conhecidos:
                     break
                 continue
             conhecidos_seguidos = 0
-            if novos:
+            if novos or falhas:
                 espera(random.uniform(cfg.pausa_min, cfg.pausa_max))
-            _gravar(bib, fonte, remoto)
+            try:
+                _gravar(bib, fonte, remoto)
+            except (PausaInstagram, SessaoInvalida):
+                raise
+            except Exception as erro:
+                falhas += 1
+                falhas_seguidas += 1
+                aviso(f"Falha ao baixar {remoto.shortcode}, pulando: {erro}")
+                if falhas_seguidas >= MAX_FALHAS_SEGUIDAS:
+                    aviso("Muitas falhas seguidas; parando o download por agora.")
+                    break
+                continue
+            falhas_seguidas = 0
             novos += 1
             if novos >= maximo:
                 break
+        else:
+            # Chegou ao fim da lista de salvos sem interrupção.
+            bib.salvar_estado({**estado, "varredura_completa": True})
     except PausaInstagram:
-        return ResultadoDownload(novos=novos, pausado=True)
-    return ResultadoDownload(novos=novos, pausado=False)
+        return ResultadoDownload(novos=novos, pausado=True, falhas=falhas)
+    return ResultadoDownload(novos=novos, pausado=False, falhas=falhas)
 
 
 # --- Instaloader -------------------------------------------------------------
@@ -125,17 +151,28 @@ def novo_instaloader():
     )
 
 
+def _cadeia(erro: BaseException) -> Iterator[BaseException]:
+    vistos = set()
+    atual: BaseException | None = erro
+    while atual is not None and id(atual) not in vistos:
+        vistos.add(id(atual))
+        yield atual
+        atual = atual.__cause__ or atual.__context__
+
+
+def _eh_deslogado(erro: BaseException) -> bool:
+    return any("logged out" in str(e).lower() or "redirected to login" in str(e).lower() for e in _cadeia(erro))
+
+
 def _eh_pausa(erro: BaseException) -> bool:
     import instaloader
 
-    atual: BaseException | None = erro
-    while atual is not None:
-        if isinstance(atual, (PausaInstagram, instaloader.TooManyRequestsException, instaloader.AbortDownloadException)):
+    for e in _cadeia(erro):
+        if isinstance(e, (PausaInstagram, instaloader.TooManyRequestsException)):
             return True
-        texto = str(atual).lower()
+        texto = str(e).lower()
         if "please wait a few minutes" in texto or re.search(r"\b429\b", texto):
             return True
-        atual = atual.__cause__ or atual.__context__
     return False
 
 
@@ -152,11 +189,14 @@ class FonteInstaloader:
         self.usuario = usuario
 
     def _traduzir(self, erro: BaseException) -> BaseException:
+        if _eh_deslogado(erro) or isinstance(erro, (self._il.LoginRequiredException, self._il.LoginException)):
+            return SessaoInvalida(str(erro))
         if _eh_pausa(erro):
             return PausaInstagram(str(erro))
-        if isinstance(erro, (self._il.LoginRequiredException, self._il.LoginException)):
-            return SessaoInvalida(str(erro))
         return erro
+
+    def _erros(self) -> tuple[type[BaseException], ...]:
+        return (self._il.InstaloaderException, self._il.AbortDownloadException, PausaInstagram)
 
     def iterar(self) -> Iterator[PostRemoto]:
         il = self._il
@@ -164,8 +204,11 @@ class FonteInstaloader:
             perfil = il.Profile.from_username(self.L.context, self.usuario)
             for p in perfil.get_saved_posts():
                 yield self._converter(p)
-        except (il.InstaloaderException, PausaInstagram) as e:
-            raise self._traduzir(e) from e
+        except self._erros() as e:
+            traduzido = self._traduzir(e)
+            if traduzido is e:
+                raise
+            raise traduzido from e
 
     def _converter(self, p) -> PostRemoto:
         if p.typename == "GraphSidecar":
@@ -197,5 +240,8 @@ class FonteInstaloader:
             with open(destino, "wb") as f:
                 for bloco in resp.iter_content(chunk_size=1 << 16):
                     f.write(bloco)
-        except (self._il.InstaloaderException, PausaInstagram) as e:
-            raise self._traduzir(e) from e
+        except self._erros() as e:
+            traduzido = self._traduzir(e)
+            if traduzido is e:
+                raise
+            raise traduzido from e

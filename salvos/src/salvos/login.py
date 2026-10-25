@@ -26,6 +26,11 @@ def _ler_cookies(cookies_sqlite: Path) -> dict[str, str]:
     with tempfile.TemporaryDirectory() as tmp:
         copia = Path(tmp) / "cookies.sqlite"
         shutil.copy2(cookies_sqlite, copia)
+        # Cookies recentes ficam no -wal até o Firefox fechar; copiamos junto.
+        for sufixo in ("-wal", "-shm"):
+            extra = cookies_sqlite.with_name(cookies_sqlite.name + sufixo)
+            if extra.exists():
+                shutil.copy2(extra, copia.with_name(copia.name + sufixo))
         con = sqlite3.connect(copia)
         try:
             linhas = con.execute(
@@ -60,4 +65,6 @@ def importar_firefox(cfg: Config) -> str:
 def login_interativo(cfg: Config, usuario: str) -> str:
     L = novo_instaloader()
     L.interactive_login(usuario)
-    return _salvar(cfg, L, usuario)
+    # O Instagram aceita e-mail ou maiúsculas no login; a sessão precisa do nome canônico.
+    canonico = L.test_login() or usuario.strip().lstrip("@").lower()
+    return _salvar(cfg, L, canonico)

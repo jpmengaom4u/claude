@@ -54,3 +54,30 @@ def test_novo_instaloader_nao_insiste_em_429():
     assert L.context.max_connection_attempts == 1
     with pytest.raises(PausaInstagram):
         L.context._rate_controller.handle_429("other")
+
+
+def test_importar_firefox_le_cookie_ainda_no_wal(cfg, monkeypatch):
+    perfil = cfg.pasta_app.parent / "Mozilla" / "Firefox" / "Profiles" / "abc.default-release"
+    perfil.mkdir(parents=True)
+    con = sqlite3.connect(perfil / "cookies.sqlite")
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA wal_autocheckpoint=0")
+    con.execute("CREATE TABLE moz_cookies (name TEXT, value TEXT, host TEXT)")
+    con.commit()
+    con.execute("INSERT INTO moz_cookies VALUES ('sessionid', 's1', '.instagram.com')")
+    con.commit()  # fica no -wal enquanto o Firefox (esta conexão) está aberto
+    monkeypatch.setattr(login, "novo_instaloader", LFalso)
+    try:
+        assert login.importar_firefox(cfg) == "joao"
+    finally:
+        con.close()
+
+
+def test_login_interativo_salva_usuario_canonico(cfg, monkeypatch):
+    class LInterativo(LFalso):
+        def interactive_login(self, usuario):
+            self.context._session.cookies.set("sessionid", "s1")
+
+    monkeypatch.setattr(login, "novo_instaloader", LInterativo)
+    assert login.login_interativo(cfg, "JoaoP") == "joao"
+    assert (cfg.pasta_app / "usuario.txt").read_text(encoding="utf-8") == "joao"

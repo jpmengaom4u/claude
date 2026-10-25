@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import threading
+import tomllib
 import webbrowser
 
 import uvicorn
@@ -31,7 +32,7 @@ def _usuario(cfg: Config) -> str:
     arq = cfg.pasta_app / "usuario.txt"
     if not arq.exists():
         raise SessaoInvalida("Nenhum usuário salvo.")
-    return arq.read_text(encoding="utf-8").strip()
+    return arq.read_text(encoding="utf-8-sig").strip().lstrip("@").lower()
 
 
 def _ia(cfg: Config) -> ClienteIA:
@@ -84,11 +85,17 @@ def cmd_sync(cfg: Config, args) -> int:
     except SessaoInvalida:
         print(MSG_SESSAO)
         return 1
+    except Exception as e:
+        # Erro inesperado na listagem: o que já foi baixado ainda é processado.
+        print(f"O download parou por um erro: {e}")
 
     transcritos = 0
     if bib.pendentes("transcrito"):
         print("Transcrevendo vídeos… (na primeira vez, o modelo do Whisper é baixado)")
-        transcritos = transcrever_pendentes(bib, transcritor_whisper(cfg))
+        try:
+            transcritos = transcrever_pendentes(bib, transcritor_whisper(cfg))
+        except Exception as e:
+            print(f"Não foi possível transcrever agora ({e}). Os vídeos ficam para o próximo sync.")
 
     print("Classificando…")
     classificados, codigo = _classificar(bib, cfg)
@@ -101,18 +108,27 @@ def _mostrar(nichos: list[Nicho]) -> None:
         print(f"  {i}. {n.nome} — {n.descricao}")
 
 
+def _abrir_editor(arquivo) -> None:
+    if os.name == "nt":
+        subprocess.call(["notepad.exe", str(arquivo)])
+    elif os.environ.get("EDITOR"):
+        subprocess.call([os.environ["EDITOR"], str(arquivo)])
+
+
 def _editar(bib: Biblioteca, proposta: list[Nicho]) -> list[Nicho]:
     arquivo = bib.raiz / "nichos-proposta.toml"
     gravar_nichos_toml(arquivo, proposta)
-    if hasattr(os, "startfile"):
-        os.startfile(arquivo)  # type: ignore[attr-defined]
-    elif os.environ.get("EDITOR"):
-        subprocess.call([os.environ["EDITOR"], str(arquivo)])
-    print(f"Edite o arquivo {arquivo}, salve e pressione Enter aqui.")
-    input()
-    editados = ler_nichos_toml(arquivo) or []
-    arquivo.unlink(missing_ok=True)
-    return editados
+    while True:
+        _abrir_editor(arquivo)
+        print(f"Edite o arquivo {arquivo}, salve e pressione Enter aqui.")
+        input()
+        try:
+            editados = ler_nichos_toml(arquivo) or []
+        except (tomllib.TOMLDecodeError, KeyError) as e:
+            print(f"Erro no arquivo: {e}. Corrija e tente de novo.")
+            continue
+        arquivo.unlink(missing_ok=True)
+        return editados
 
 
 def cmd_nichos(cfg: Config, args) -> int:
@@ -152,6 +168,12 @@ def cmd_nichos(cfg: Config, args) -> int:
                 bib.salvar(post)
     else:
         final = proposta
+        # Posts em nichos que deixaram de existir voltam para a fila.
+        nomes = {n.nome for n in final} | {OUTROS}
+        for post in bib.listar():
+            if post.nicho and post.nicho not in nomes and not post.nicho_manual:
+                post.etapas["classificado"] = False
+                bib.salvar(post)
     if not any(n.nome == OUTROS for n in final):
         final.append(Nicho(OUTROS, "Posts que não se encaixam nos outros nichos."))
     bib.salvar_nichos(final)

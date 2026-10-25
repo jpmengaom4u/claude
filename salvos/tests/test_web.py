@@ -95,3 +95,19 @@ def test_midia_bloqueia_path_traversal(cliente):
     assert cliente.get("/midia/B/..%2F..%2Fbiblioteca.db").status_code == 404
     assert cliente.get("/midia/..%2F..%2F/biblioteca.db").status_code == 404
     assert cliente.get("/midia/B/..%5C..%5Cbiblioteca.db").status_code == 404
+
+
+def test_nicho_fora_do_toml_aparece_na_lista(cliente, bib, adicionar, post_exemplo):
+    adicionar(bib, post_exemplo(shortcode="Z", nicho="Antigo"))
+    nomes = {n["nome"]: n["total"] for n in cliente.get("/api/nichos").json()}
+    assert nomes["Antigo"] == 1
+    assert cliente.get("/api/exportar/Antigo.md").status_code == 200
+
+
+def test_criar_nicho_garante_outros(bib, tmp_path):
+    from salvos.biblioteca import Biblioteca
+
+    b = Biblioteca(tmp_path / "nova")
+    c = TestClient(criar_app(b))
+    assert c.post("/api/nichos", json={"nome": "IA", "descricao": "ia"}).status_code == 201
+    assert [n.nome for n in b.nichos()] == ["IA", "Outros"]

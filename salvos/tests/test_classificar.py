@@ -87,3 +87,19 @@ def test_conta_em_outros(bib, adicionar, post_exemplo, ia_falsa):
     preparar(bib, adicionar, post_exemplo, dict(shortcode="A"), dict(shortcode="B"))
     r = classificar_pendentes(bib, ia_falsa(), "m")
     assert r.em_outros == 2
+
+
+def test_escolha_manual_feita_durante_classificacao_nao_e_sobrescrita(bib, adicionar, post_exemplo, ia_falsa):
+    preparar(bib, adicionar, post_exemplo, dict(legenda="xA"))
+
+    class IAQueDemora(ia_falsa):
+        def escolher(self, state, opcoes, instrucoes, modelo="m"):
+            # Enquanto a IA pensa, o usuário move o post na página.
+            p = bib.obter("ABC123")
+            p.nicho, p.nicho_manual = "Saúde", True
+            bib.salvar(p)
+            return ("IA", 0.9)
+
+    classificar_pendentes(bib, IAQueDemora(), "m")
+    p = bib.obter("ABC123")
+    assert (p.nicho, p.nicho_manual) == ("Saúde", True)

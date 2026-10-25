@@ -188,3 +188,72 @@ def test_nichos_editar_rele_arquivo(ambiente, monkeypatch):
     assert cli.main(["nichos"]) == 0
     assert [n.nome for n in Biblioteca(cfg.biblioteca).nichos()] == ["Tecnologia", "Outros"]
     assert not arquivo.exists()
+
+
+def test_usuario_normalizado(cfg):
+    cfg.pasta_app.mkdir(parents=True, exist_ok=True)
+    (cfg.pasta_app / "usuario.txt").write_text(" @JoaoP\n", encoding="utf-8")
+    assert cli._usuario(cfg) == "joaop"
+
+
+def test_sync_falha_no_whisper_segue_para_classificacao(ambiente, monkeypatch, capsys):
+    cfg, _ = ambiente
+    com_nichos(cfg)
+
+    def quebrado(cfg):
+        raise OSError("ctranslate2.dll não encontrada")
+
+    monkeypatch.setattr(cli, "transcritor_whisper", quebrado)
+    FonteFalsa.posts = [remoto("A", "video")]
+    assert cli.main(["sync"]) == 0
+    out = capsys.readouterr().out
+    assert "ctranslate2.dll" in out
+    assert Biblioteca(cfg.biblioteca).obter("A").nicho == "IA"
+
+
+def test_sync_erro_na_listagem_segue_para_classificacao(ambiente, capsys):
+    cfg, _ = ambiente
+    com_nichos(cfg)
+    FonteFalsa.posts, FonteFalsa.erro = [remoto("A")], ConnectionError("rede caiu")
+    assert cli.main(["sync"]) == 0
+    assert "rede caiu" in capsys.readouterr().out
+    assert Biblioteca(cfg.biblioteca).obter("A").nicho == "IA"
+
+
+def test_nova_proposta_reclassifica_posts_de_nichos_que_sumiram(ambiente, monkeypatch):
+    cfg, ia = ambiente
+    com_nichos(cfg)
+    FonteFalsa.posts = [remoto("A")]
+    cli.main(["sync"])
+    ia.respostas_chat = [json.dumps([{"nome": "Tecnologia", "descricao": "t"}])]
+    ia.escolhas = {"legenda": ("Tecnologia", 0.9)}
+    respostas = iter(["a", "s"])
+    monkeypatch.setattr("builtins.input", lambda _="": next(respostas))
+    assert cli.main(["nichos"]) == 0
+    assert Biblioteca(cfg.biblioteca).obter("A").nicho == "Tecnologia"
+
+
+def test_nichos_editar_com_erro_de_toml_pede_de_novo(ambiente, monkeypatch, capsys):
+    cfg, ia = ambiente
+    FonteFalsa.posts = [remoto("A")]
+    cli.main(["sync"])
+    ia.respostas_chat = [json.dumps([{"nome": "IA", "descricao": "ia"}])]
+    monkeypatch.setattr(cli, "_abrir_editor", lambda arquivo: None)
+    arquivo = cfg.biblioteca / "nichos-proposta.toml"
+    conteudos = iter([
+        "﻿[[nicho]\nnome = quebrado",
+        '﻿[[nicho]]\nnome = "Tecnologia"\ndescricao = "t"\n',
+    ])
+
+    def responder(prompt=""):
+        if prompt.startswith("[a]"):
+            return "e"
+        if prompt.startswith("Classificar"):
+            return "n"
+        arquivo.write_text(next(conteudos), encoding="utf-8")
+        return ""
+
+    monkeypatch.setattr("builtins.input", responder)
+    assert cli.main(["nichos"]) == 0
+    assert "Erro no arquivo" in capsys.readouterr().out
+    assert [n.nome for n in Biblioteca(cfg.biblioteca).nichos()] == ["Tecnologia", "Outros"]

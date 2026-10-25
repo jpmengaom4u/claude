@@ -123,3 +123,85 @@ def test_imagem_ja_marcada_como_transcrita(bib, cfg):
     rodar(bib, FonteFalsa([remoto("IMG01"), car]), cfg)
     assert bib.obter("IMG01").etapas["transcrito"] is True
     assert bib.obter("CAR01").etapas["transcrito"] is True
+
+
+# --- correções da revisão final ----------------------------------------------
+
+
+def test_segunda_execucao_continua_apos_limite(bib, cfg):
+    posts = [remoto(f"P{i:02d}") for i in range(20)]
+    r1, _ = rodar(bib, FonteFalsa(posts), cfg, limite=5)
+    assert r1.novos == 5
+    r2, _ = rodar(bib, FonteFalsa(posts), cfg)
+    assert r2.novos == 15
+    # Depois de uma varredura completa, volta a parar nos conhecidos.
+    r3, _ = rodar(bib, FonteFalsa([remoto("NOVO")] + posts), cfg)
+    assert r3.novos == 1
+
+
+def test_pausa_nao_marca_varredura_completa(bib, cfg):
+    posts = [remoto(f"P{i:02d}") for i in range(10)]
+    rodar(bib, FonteFalsa(posts, falhar_em=7, erro=PausaInstagram("429")), cfg)
+    r, _ = rodar(bib, FonteFalsa(posts), cfg)
+    assert r.novos == 4
+
+
+def test_falha_num_post_pula_e_segue(bib, cfg):
+    class FonteComFalha(FonteFalsa):
+        def baixar_midia(self, url, destino):
+            if "P01" in url:
+                raise ConnectionError("403 url expirada")
+            super().baixar_midia(url, destino)
+
+    avisos = []
+    r = sincronizar_downloads(bib, FonteComFalha([remoto("P00"), remoto("P01"), remoto("P02")]), cfg,
+                              espera=lambda s: None, aviso=avisos.append)
+    assert r.novos == 2 and r.falhas == 1
+    assert not bib.existe("P01")
+    assert any("P01" in a for a in avisos)
+
+
+def test_tres_falhas_seguidas_param(bib, cfg):
+    class FonteSempreFalha(FonteFalsa):
+        def baixar_midia(self, url, destino):
+            raise ConnectionError("rede")
+
+    r = sincronizar_downloads(bib, FonteSempreFalha([remoto(f"P{i:02d}") for i in range(10)]), cfg,
+                              espera=lambda s: None, aviso=lambda m: None)
+    assert r.falhas == 3 and r.novos == 0
+
+
+def _fonte_instaloader(cfg, monkeypatch, erro):
+    import instaloader
+
+    from salvos.baixar import FonteInstaloader
+
+    cfg.pasta_app.mkdir(parents=True, exist_ok=True)
+    (cfg.pasta_app / "session-joao").write_text("x")
+    monkeypatch.setattr(instaloader.Instaloader, "load_session_from_file", lambda self, u, f=None: None)
+
+    def falhar(ctx, usuario):
+        raise erro
+
+    monkeypatch.setattr(instaloader.Profile, "from_username", staticmethod(falhar))
+    return FonteInstaloader(cfg, "joao")
+
+
+def test_instaloader_429_real_vira_pausa(bib, cfg, monkeypatch):
+    import instaloader
+
+    fonte = _fonte_instaloader(cfg, monkeypatch, instaloader.AbortDownloadException(
+        'Query to https://www.instagram.com/graphql/query responded with "429 Too Many Requests"'))
+    r, _ = rodar(bib, fonte, cfg)
+    assert r.pausado is True
+
+
+def test_instaloader_deslogado_vira_sessao_invalida(bib, cfg, monkeypatch):
+    import instaloader
+
+    from salvos.baixar import SessaoInvalida
+
+    fonte = _fonte_instaloader(cfg, monkeypatch, instaloader.AbortDownloadException(
+        "Redirected to login page. You've been logged out, please wait some time, recreate the session and try again"))
+    with pytest.raises(SessaoInvalida):
+        rodar(bib, fonte, cfg)

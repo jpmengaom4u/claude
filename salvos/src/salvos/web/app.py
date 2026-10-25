@@ -56,6 +56,11 @@ def criar_app(bib: Biblioteca) -> FastAPI:
     def listar_nichos():
         contagem = bib.contagem()
         saida = [{"nome": n.nome, "descricao": n.descricao, "total": contagem.get(n.nome, 0)} for n in bib.nichos() or []]
+        listados = {n["nome"] for n in saida} | {SEM_CLASSIFICACAO}
+        # Nichos que só existem nos posts (toml editado à mão, proposta nova etc.).
+        for nome, total in sorted(contagem.items()):
+            if nome not in listados:
+                saida.append({"nome": nome, "descricao": "(fora da lista de nichos)", "total": total})
         if contagem.get(SEM_CLASSIFICACAO):
             saida.append({"nome": SEM_CLASSIFICACAO, "descricao": "", "total": contagem[SEM_CLASSIFICACAO]})
         return saida
@@ -67,8 +72,11 @@ def criar_app(bib: Biblioteca) -> FastAPI:
             raise HTTPException(400, "Nome vazio")
         if nome in nomes_nichos() or nome == SEM_CLASSIFICACAO:
             raise HTTPException(409, "Esse nicho já existe")
-        lista = bib.nichos() or []
-        bib.salvar_nichos(lista + [Nicho(nome, dados.descricao)])
+        lista = [n for n in bib.nichos() or [] if n.nome != OUTROS] + [Nicho(nome, dados.descricao)]
+        outros = [n for n in bib.nichos() or [] if n.nome == OUTROS] or [
+            Nicho(OUTROS, "Posts que não se encaixam nos outros nichos.")
+        ]
+        bib.salvar_nichos(lista + outros)
         return {"nome": nome}
 
     @app.patch("/api/nichos/{nome:path}")
@@ -133,7 +141,7 @@ def criar_app(bib: Biblioteca) -> FastAPI:
         nicho, _, ext = arquivo.rpartition(".")
         if ext not in ("md", "zip") or not nicho:
             raise HTTPException(404, "Formato inválido")
-        if nicho not in nomes_nichos() and nicho != SEM_CLASSIFICACAO:
+        if nicho not in nomes_nichos() and nicho not in bib.contagem():
             raise HTTPException(404, f"Nicho não encontrado: {nicho}")
         base = nome_arquivo(nicho)
         if ext == "md":

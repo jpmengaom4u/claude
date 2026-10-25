@@ -23,20 +23,23 @@ Organiza os posts que você salvou no Instagram por **nicho** (IA, Saúde, Estud
    ```powershell
    salvos login
    ```
-   A ferramenta copia a sessão do Firefox; sua senha nunca é pedida nem gravada. Sem Firefox, use `salvos login --interativo SEU_USUARIO`, que pede a senha (e o código 2FA) uma vez, no terminal.
+   A ferramenta copia a sessão do Firefox; sua senha nunca é pedida nem gravada. Pode deixar o Firefox aberto. Sem Firefox, use `salvos login --interativo SEU_USUARIO`, que pede a senha (e o código 2FA) uma vez, no terminal.
 
 ## Uso
 
 ```powershell
 salvos sync --limite 5     # primeiro teste: baixa só 5 posts
-salvos nichos              # a IA propõe os nichos; você aceita, edita ou pede outra proposta
-salvos sync                # baixa o resto (150 por vez), transcreve e classifica
+salvos sync                # baixa o resto, 150 por vez (repita até dizer "Novos: 0")
+salvos nichos              # a IA olha TODOS os posts e propõe os nichos; você aceita, edita ou pede outra
 salvos abrir               # abre a página em http://127.0.0.1:8000
 ```
 
+Defina os nichos **depois** de baixar tudo: assim a IA vê todos os assuntos que você salva. Daí em diante, cada `salvos sync` baixa os salvos novos, transcreve e já classifica.
+
 - Na **primeira transcrição**, o modelo do Whisper (~500 MB) é baixado. Depois tudo roda offline e grátis.
 - Se aparecer *"O Instagram pediu uma pausa"*, espere algumas horas. Nada se perde: o próximo `sync` continua de onde parou.
-- Rode `salvos sync` de novo para buscar os salvos mais recentes. Ele para quando encontra os que já baixou. Para varrer tudo de novo, use `salvos sync --completo`.
+- Enquanto a primeira varredura não termina, cada `salvos sync` continua de onde parou. Depois disso, ele busca só os salvos mais recentes e para quando encontra os que já baixou. Para varrer tudo de novo, use `salvos sync --completo`.
+- Se um post falhar (link expirado, rede), ele é pulado e tentado de novo no próximo `sync`.
 - Se muitos posts caírem em **Outros**, rode `salvos nichos --revisar` para a IA sugerir nichos novos.
 - Se o índice der problema, `salvos reindexar` o recria a partir das pastas.
 

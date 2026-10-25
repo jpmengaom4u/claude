@@ -119,3 +119,33 @@ def test_pendentes_ignora_indisponiveis(bib, post_exemplo):
 def test_contagem_sem_classificacao(bib, post_exemplo):
     adicionar(bib, post_exemplo(shortcode="A"))
     assert bib.contagem() == {"Sem classificação": 1}
+
+
+def test_preparar_tenta_de_novo_se_windows_travar_rename(bib, post_exemplo, monkeypatch):
+    from pathlib import Path
+
+    original = Path.rename
+    tentativas = []
+
+    def rename_travado(self, alvo):
+        tentativas.append(1)
+        if len(tentativas) < 3:
+            raise PermissionError("[WinError 5] Acesso negado")
+        return original(self, alvo)
+
+    monkeypatch.setattr(Path, "rename", rename_travado)
+    monkeypatch.setattr("salvos.biblioteca.time.sleep", lambda s: None)
+    adicionar(bib, post_exemplo())
+    assert bib.existe("ABC123")
+    assert len(tentativas) == 3
+
+
+def test_nichos_toml_com_bom(bib):
+    (bib.raiz / "nichos.toml").write_bytes('﻿[[nicho]]\nnome = "IA"\ndescricao = "x"\n'.encode("utf-8"))
+    assert [n.nome for n in bib.nichos()] == ["IA"]
+
+
+def test_estado_padrao_e_gravacao(bib):
+    assert bib.estado() == {"varredura_completa": False}
+    bib.salvar_estado({"varredura_completa": True})
+    assert bib.estado()["varredura_completa"] is True

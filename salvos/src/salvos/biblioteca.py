@@ -8,6 +8,7 @@ import json
 import shutil
 import sqlite3
 import threading
+import time
 import tomllib
 from contextlib import contextmanager
 from pathlib import Path
@@ -43,10 +44,26 @@ def _consulta_fts(q: str) -> str | None:
     return " ".join('"' + t.replace('"', '""') + '"' for t in termos)
 
 
+def _com_retentativas(acao, *args):
+    """No Windows, antivírus e indexador seguram arquivos recém-gravados por instantes."""
+    for espera in (0.1, 0.5, 1.0):
+        try:
+            return acao(*args)
+        except PermissionError:
+            time.sleep(espera)
+    return acao(*args)
+
+
+def _apagar_pasta(pasta: Path) -> None:
+    if pasta.exists():
+        _com_retentativas(shutil.rmtree, pasta)
+
+
 def ler_nichos_toml(arquivo: Path) -> list[Nicho] | None:
+    """Lê um nichos.toml (aceita BOM do Bloco de Notas). Levanta tomllib.TOMLDecodeError se inválido."""
     if not arquivo.exists():
         return None
-    dados = tomllib.loads(arquivo.read_text(encoding="utf-8"))
+    dados = tomllib.loads(arquivo.read_text(encoding="utf-8-sig"))
     return [Nicho(n["nome"], n.get("descricao", "")) for n in dados.get("nicho", [])]
 
 
@@ -78,15 +95,15 @@ class Biblioteca:
     @contextmanager
     def preparar(self, shortcode: str) -> Iterator[Path]:
         tmp = self.posts / f".tmp-{shortcode}"
-        shutil.rmtree(tmp, ignore_errors=True)
-        tmp.mkdir()
+        _apagar_pasta(tmp)
+        tmp.mkdir(exist_ok=True)
         try:
             yield tmp
             if not (tmp / "post.json").exists():
                 raise RuntimeError(f"post.json ausente em {tmp}")
             destino = self.pasta(shortcode)
-            shutil.rmtree(destino, ignore_errors=True)
-            tmp.rename(destino)
+            _apagar_pasta(destino)
+            _com_retentativas(tmp.rename, destino)
         except BaseException:
             shutil.rmtree(tmp, ignore_errors=True)
             raise
@@ -104,7 +121,7 @@ class Biblioteca:
         arq = self.pasta(post.shortcode) / "post.json"
         tmp = arq.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(post.para_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
-        tmp.replace(arq)
+        _com_retentativas(tmp.replace, arq)
         self._indexar(post)
 
     def gravar_transcricao(self, shortcode: str, texto: str) -> None:
@@ -174,6 +191,16 @@ class Biblioteca:
             self._indexar(self.obter(pasta.name))
             total += 1
         return total
+
+    # --- estado da sincronização ---------------------------------------------
+
+    def estado(self) -> dict:
+        arq = self.raiz / "estado.json"
+        dados = json.loads(arq.read_text(encoding="utf-8")) if arq.exists() else {}
+        return {"varredura_completa": False, **dados}
+
+    def salvar_estado(self, estado: dict) -> None:
+        (self.raiz / "estado.json").write_text(json.dumps(estado), encoding="utf-8")
 
     # --- nichos ------------------------------------------------------------
 
