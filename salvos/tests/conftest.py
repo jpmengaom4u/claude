@@ -31,3 +31,51 @@ def cfg(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     return carregar_config()
+
+
+@pytest.fixture
+def bib(cfg):
+    from salvos.biblioteca import Biblioteca
+
+    return Biblioteca(cfg.biblioteca)
+
+
+@pytest.fixture
+def adicionar():
+    import json
+
+    def _adicionar(bib, post, transcricao=None):
+        with bib.preparar(post.shortcode) as pasta:
+            for nome in post.arquivos:
+                (pasta / nome).write_bytes(b"x")
+            (pasta / "post.json").write_text(json.dumps(post.para_dict(), ensure_ascii=False), encoding="utf-8")
+        if transcricao is not None:
+            bib.gravar_transcricao(post.shortcode, transcricao)
+
+    return _adicionar
+
+
+class IAFalsa:
+    def __init__(self, chat=None, escolhas=None):
+        self.respostas_chat = list(chat or [])
+        self.escolhas = escolhas or {}
+        self.chamadas_chat = []
+        self.chamadas_escolher = []
+
+    def chat(self, modelo, mensagens):
+        self.chamadas_chat.append((modelo, mensagens))
+        return self.respostas_chat.pop(0)
+
+    def escolher(self, state, opcoes, instrucoes, modelo="typesafe/jev-1.13"):
+        self.chamadas_escolher.append((state, opcoes, instrucoes))
+        for chave, resposta in self.escolhas.items():
+            if chave in state:
+                if isinstance(resposta, Exception):
+                    raise resposta
+                return resposta
+        return ("Outros", 0.9)
+
+
+@pytest.fixture
+def ia_falsa():
+    return IAFalsa
