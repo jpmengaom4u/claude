@@ -43,6 +43,18 @@ def _consulta_fts(q: str) -> str | None:
     return " ".join('"' + t.replace('"', '""') + '"' for t in termos)
 
 
+def ler_nichos_toml(arquivo: Path) -> list[Nicho] | None:
+    if not arquivo.exists():
+        return None
+    dados = tomllib.loads(arquivo.read_text(encoding="utf-8"))
+    return [Nicho(n["nome"], n.get("descricao", "")) for n in dados.get("nicho", [])]
+
+
+def gravar_nichos_toml(arquivo: Path, lista: list[Nicho]) -> None:
+    dados = {"nicho": [{"nome": n.nome, "descricao": n.descricao} for n in lista]}
+    arquivo.write_text(tomli_w.dumps(dados), encoding="utf-8")
+
+
 class Biblioteca:
     def __init__(self, raiz: Path):
         self.raiz = Path(raiz)
@@ -170,14 +182,10 @@ class Biblioteca:
         return self.raiz / "nichos.toml"
 
     def nichos(self) -> list[Nicho] | None:
-        if not self._arquivo_nichos.exists():
-            return None
-        dados = tomllib.loads(self._arquivo_nichos.read_text(encoding="utf-8"))
-        return [Nicho(n["nome"], n.get("descricao", "")) for n in dados.get("nicho", [])]
+        return ler_nichos_toml(self._arquivo_nichos)
 
     def salvar_nichos(self, lista: list[Nicho]) -> None:
-        dados = {"nicho": [{"nome": n.nome, "descricao": n.descricao} for n in lista]}
-        self._arquivo_nichos.write_text(tomli_w.dumps(dados), encoding="utf-8")
+        gravar_nichos_toml(self._arquivo_nichos, lista)
 
     def _mover_posts(self, de: str, para: str) -> None:
         for post in self.listar(nicho=de):
