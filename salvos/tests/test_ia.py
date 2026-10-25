@@ -96,3 +96,38 @@ def test_sem_chave_nao_envia_authorization():
     c = ClienteIA(None, http=httpx.Client(transport=httpx.MockTransport(tratar)))
     c.chat("m", [])
     assert "Authorization" not in chamadas[0].headers
+
+
+def test_429_persistente_vira_limite():
+    from salvos.ia import LimiteIA
+
+    chamadas = []
+    c, _ = cliente([(429, {})] * 4, chamadas)
+    with pytest.raises(LimiteIA, match="tente de novo amanhã"):
+        c.chat("m", [])
+
+
+def test_chat_envia_lista_de_reservas():
+    chamadas = []
+    c, _ = cliente([(200, {"choices": [{"message": {"content": "ok"}}]})], chamadas)
+    c.chat("a:free", [], reservas=["b:free", "c:free"])
+    corpo = json.loads(chamadas[0].content)
+    assert corpo["model"] == "a:free"
+    assert corpo["models"] == ["a:free", "b:free", "c:free"]
+
+
+def test_chat_sem_reservas_nao_envia_models():
+    chamadas = []
+    c, _ = cliente([(200, {"choices": [{"message": {"content": "ok"}}]})], chamadas)
+    c.chat("a", [])
+    assert "models" not in json.loads(chamadas[0].content)
+
+
+def test_429_upstream_diz_que_esta_congestionado():
+    from salvos.ia import LimiteIA
+
+    chamadas = []
+    corpo = {"error": {"code": 429, "metadata": {"raw": "x:free is temporarily rate-limited upstream"}}}
+    c, _ = cliente([(429, corpo)] * 4, chamadas)
+    with pytest.raises(LimiteIA, match="congestionados"):
+        c.chat("m", [])

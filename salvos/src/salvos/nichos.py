@@ -48,6 +48,7 @@ def propor_nichos(
     modelo: str,
     posts: list[Post] | None = None,
     existentes: list[Nicho] | None = None,
+    reservas: list[str] | None = None,
 ) -> list[Nicho]:
     posts = bib.listar() if posts is None else posts
     instrucoes = _INSTRUCOES
@@ -57,6 +58,7 @@ def propor_nichos(
     resposta = ia.chat(
         modelo,
         [{"role": "system", "content": instrucoes}, {"role": "user", "content": resumos}],
+        reservas=reservas,
     )
     nomes_existentes = {n.nome.lower() for n in existentes or []}
     nichos = [
@@ -68,5 +70,9 @@ def propor_nichos(
     return nichos
 
 
-def revisar_nichos(bib: Biblioteca, ia: ClienteIA, modelo: str) -> list[Nicho]:
-    return propor_nichos(bib, ia, modelo, posts=bib.listar(nicho=OUTROS), existentes=bib.nichos())
+def revisar_nichos(
+    bib: Biblioteca, ia: ClienteIA, modelo: str, reservas: list[str] | None = None
+) -> list[Nicho]:
+    return propor_nichos(
+        bib, ia, modelo, posts=bib.listar(nicho=OUTROS), existentes=bib.nichos(), reservas=reservas
+    )

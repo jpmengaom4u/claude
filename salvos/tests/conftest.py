@@ -62,9 +62,13 @@ class IAFalsa:
         self.chamadas_chat = []
         self.chamadas_escolher = []
 
-    def chat(self, modelo, mensagens):
+    def chat(self, modelo, mensagens, reservas=None):
         self.chamadas_chat.append((modelo, mensagens))
-        return self.respostas_chat.pop(0)
+        self.reservas_usadas = reservas
+        resposta = self.respostas_chat.pop(0)
+        if isinstance(resposta, Exception):
+            raise resposta
+        return resposta(mensagens) if callable(resposta) else resposta
 
     def escolher(self, state, opcoes, instrucoes, modelo="typesafe/jev-1.13"):
         self.chamadas_escolher.append((state, opcoes, instrucoes))
