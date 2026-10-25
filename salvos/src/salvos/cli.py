@@ -41,7 +41,7 @@ def _ia(cfg: Config) -> ClienteIA:
 
 def _classificar(bib: Biblioteca, cfg: Config) -> tuple[int, int]:
     """Classifica os pendentes e imprime os avisos. Retorna (classificados, código de saída)."""
-    r = classificar_pendentes(bib, _ia(cfg), cfg.modelo_classificacao)
+    r = classificar_pendentes(bib, _ia(cfg), cfg.modelo_classificacao, cfg.tamanho_lote, cfg.modelos_reserva)
     if r.sem_nichos:
         print(MSG_SEM_NICHOS)
         return 0, 0
@@ -142,9 +142,9 @@ def cmd_nichos(cfg: Config, args) -> int:
         while True:
             print("Pedindo à IA uma proposta de nichos…")
             if args.revisar:
-                proposta = revisar_nichos(bib, ia, cfg.modelo_nichos)
+                proposta = revisar_nichos(bib, ia, cfg.modelo_nichos, cfg.modelos_reserva)
             else:
-                proposta = propor_nichos(bib, ia, cfg.modelo_nichos)
+                proposta = propor_nichos(bib, ia, cfg.modelo_nichos, reservas=cfg.modelos_reserva)
             _mostrar(proposta)
             escolha = input("[a]ceitar / [e]ditar / [n]ova proposta: ").strip().lower()
             if escolha.startswith("e"):

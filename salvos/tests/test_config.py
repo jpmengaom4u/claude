@@ -18,7 +18,7 @@ def test_toml_sobrepoe(cfg):
     assert novo.limite == 20
     assert novo.porta == 9000
     assert novo.pausa_min == 4
-    assert novo.modelo_classificacao == "typesafe/jev-1.13"
+    assert novo.modelo_classificacao == "google/gemma-4-31b-it:free"
 
 
 def test_chave_env_tem_prioridade(cfg, monkeypatch):
@@ -38,3 +38,17 @@ def test_chave_do_arquivo_env(cfg):
 def test_post_ida_e_volta(post_exemplo):
     p = post_exemplo(legenda="Olá 🤖 ação", hashtags=["ia"])
     assert Post.de_dict(p.para_dict()) == p
+
+
+def test_padrao_usa_modelos_gratuitos(cfg):
+    assert cfg.modelo_nichos.endswith(":free")
+    assert cfg.modelo_classificacao.endswith(":free")
+    assert cfg.tamanho_lote == 25
+
+
+def test_reservas_padrao_e_toml(cfg):
+    assert cfg.modelos_reserva and all(m.endswith(":free") for m in cfg.modelos_reserva)
+    assert len(cfg.modelos_reserva) <= 2
+    cfg.biblioteca.mkdir(parents=True)
+    (cfg.biblioteca / "salvos.toml").write_text('modelos_reserva = ["x:free"]\n', encoding="utf-8")
+    assert carregar_config().modelos_reserva == ["x:free"]

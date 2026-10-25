@@ -19,6 +19,10 @@ class ErroFatalIA(ErroIA):
     """Falha que não adianta repetir (chave inválida, sem créditos)."""
 
 
+class LimiteIA(ErroIA):
+    """Limite de uso atingido (429 persistente), comum nos modelos gratuitos."""
+
+
 class ClienteIA:
     def __init__(
         self,
@@ -49,14 +53,29 @@ class ClienteIA:
                 raise ErroFatalIA("Sem créditos na OpenRouter (HTTP 402).")
             if resp.status_code == 429 or resp.status_code >= 500:
                 ultimo = f"HTTP {resp.status_code}"
+                if resp.status_code == 429 and "upstream" in resp.text:
+                    ultimo = "upstream"
                 continue
             if resp.status_code >= 400:
                 raise ErroIA(f"OpenRouter recusou a requisição (HTTP {resp.status_code}).")
             return resp.json()
+        if ultimo == "upstream":
+            raise LimiteIA(
+                "Os modelos gratuitos estão congestionados agora. "
+                "O progresso foi salvo; tente de novo daqui a pouco."
+            )
+        if ultimo == "HTTP 429":
+            raise LimiteIA(
+                "Limite de uso da OpenRouter atingido (nos modelos gratuitos, cerca de 50 pedidos por dia). "
+                "O progresso foi salvo; tente de novo amanhã."
+            )
         raise ErroIA(f"OpenRouter indisponível após {len(ESPERAS) + 1} tentativas: {ultimo}.")
 
-    def chat(self, modelo: str, mensagens: list[dict]) -> str:
-        dados = self._post(URL_CHAT, {"model": modelo, "messages": mensagens})
+    def chat(self, modelo: str, mensagens: list[dict], reservas: list[str] | None = None) -> str:
+        corpo = {"model": modelo, "messages": mensagens}
+        if reservas:
+            corpo["models"] = [modelo, *reservas]
+        dados = self._post(URL_CHAT, corpo)
         try:
             return dados["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:

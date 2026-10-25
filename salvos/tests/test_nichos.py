@@ -49,3 +49,10 @@ def test_revisar_usa_so_posts_de_outros_e_passa_existentes(bib, adicionar, post_
     assert "receita de bolo" in texto
     assert "sobre llms" not in texto
     assert "IA" in texto
+
+
+def test_propor_nichos_repassa_reservas(bib, adicionar, post_exemplo, ia_falsa):
+    adicionar(bib, post_exemplo())
+    ia = ia_falsa(chat=[json.dumps([{"nome": "IA", "descricao": "x"}])])
+    propor_nichos(bib, ia, "m", reservas=["r1:free"])
+    assert ia.reservas_usadas == ["r1:free"]

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import tomllib
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 
@@ -11,8 +11,15 @@ from pathlib import Path
 class Config:
     biblioteca: Path
     pasta_app: Path
-    modelo_nichos: str = "anthropic/claude-sonnet-5.5"
-    modelo_classificacao: str = "typesafe/jev-1.13"
+    # Modelos gratuitos da OpenRouter. Com créditos, dá para usar por exemplo
+    # modelo_nichos = "anthropic/claude-sonnet-5.5" e modelo_classificacao = "typesafe/jev-1.13".
+    modelo_nichos: str = "google/gemma-4-31b-it:free"
+    modelo_classificacao: str = "google/gemma-4-31b-it:free"
+    # Se o modelo principal estiver congestionado, a OpenRouter tenta estes, em ordem.
+    modelos_reserva: list[str] = field(
+        default_factory=lambda: ["nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3.5-super-vl:free"]
+    )
+    tamanho_lote: int = 25
     modelo_whisper: str = "small"
     limite: int = 150
     pausa_min: float = 4

@@ -36,6 +36,9 @@ class FonteFalsa:
 def ambiente(cfg, monkeypatch, ia_falsa):
     cfg.pasta_app.mkdir(parents=True)
     (cfg.pasta_app / "usuario.txt").write_text("joao", encoding="utf-8")
+    # Estes testes usam o modo Jev (um post por chamada); o modo em lote tem testes próprios.
+    cfg.biblioteca.mkdir(parents=True, exist_ok=True)
+    (cfg.biblioteca / "salvos.toml").write_text('modelo_classificacao = "typesafe/jev-1.13"\n', encoding="utf-8")
     FonteFalsa.posts, FonteFalsa.erro = [], None
     ia = ia_falsa(escolhas={"legenda": ("IA", 0.9)})
     monkeypatch.setattr(cli, "FonteInstaloader", FonteFalsa)
@@ -257,3 +260,15 @@ def test_nichos_editar_com_erro_de_toml_pede_de_novo(ambiente, monkeypatch, caps
     assert cli.main(["nichos"]) == 0
     assert "Erro no arquivo" in capsys.readouterr().out
     assert [n.nome for n in Biblioteca(cfg.biblioteca).nichos()] == ["Tecnologia", "Outros"]
+
+
+def test_sync_padrao_classifica_em_lote_com_modelo_gratuito(ambiente, capsys):
+    cfg, ia = ambiente
+    (cfg.biblioteca / "salvos.toml").unlink()
+    com_nichos(cfg)
+    FonteFalsa.posts = [remoto("A"), remoto("B")]
+    ia.respostas_chat = [json.dumps({"A": {"nicho": "IA", "certeza": "alta"}, "B": {"nicho": "IA", "certeza": "alta"}})]
+    assert cli.main(["sync"]) == 0
+    assert len(ia.chamadas_chat) == 1 and ia.chamadas_escolher == []
+    assert ia.chamadas_chat[0][0].endswith(":free")
+    assert "Classificados: 2" in capsys.readouterr().out
