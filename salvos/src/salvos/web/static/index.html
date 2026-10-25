@@ -1,1 +1,64 @@
-<!doctype html><title>Salvos</title>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Salvos</title>
+  <link rel="stylesheet" href="/static/estilo.css">
+</head>
+<body>
+  <aside class="lateral" id="lateral">
+    <div class="marca">Salvos</div>
+    <input class="busca" id="busca" type="search" placeholder="Buscar em legendas e transcrições…" autocomplete="off">
+    <nav id="lista-nichos" aria-label="Nichos"></nav>
+    <button class="novo-nicho" id="novo-nicho" type="button">+ Novo nicho</button>
+  </aside>
+
+  <main class="principal">
+    <header class="topo">
+      <button class="abrir-lateral" id="abrir-lateral" type="button" aria-label="Mostrar nichos">☰</button>
+      <h1 id="titulo">Todos</h1>
+      <span class="total" id="total"></span>
+      <div class="acoes">
+        <div class="menu-nicho" id="menu-nicho" hidden>
+          <button type="button" id="btn-renomear">Renomear</button>
+          <button type="button" id="btn-juntar">Juntar em…</button>
+          <button type="button" id="btn-apagar" class="perigo">Apagar</button>
+        </div>
+        <details class="exportar" id="exportar" hidden>
+          <summary>Exportar nicho ▾</summary>
+          <div class="pop">
+            <a id="exportar-md" href="#" download>Texto (.md)</a>
+            <a id="exportar-zip" href="#" download>Completo (.zip)</a>
+          </div>
+        </details>
+      </div>
+    </header>
+    <section class="grade" id="grade" aria-live="polite"></section>
+    <p class="vazio" id="vazio" hidden>Nenhum post aqui.</p>
+  </main>
+
+  <dialog class="detalhe" id="detalhe">
+    <button class="fechar" id="fechar" type="button" aria-label="Fechar">✕</button>
+    <div class="detalhe-midia" id="detalhe-midia"></div>
+    <div class="detalhe-texto">
+      <div class="detalhe-cab">
+        <strong id="detalhe-autor"></strong>
+        <span id="detalhe-data"></span>
+      </div>
+      <label class="detalhe-nicho">Nicho
+        <select id="detalhe-select"></select>
+      </label>
+      <a id="detalhe-link" target="_blank" rel="noopener">Abrir no Instagram ↗</a>
+      <h3>Legenda</h3>
+      <p id="detalhe-legenda" class="texto-longo"></p>
+      <div id="bloco-transcricao">
+        <h3>Transcrição</h3>
+        <p id="detalhe-transcricao" class="texto-longo"></p>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
