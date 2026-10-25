@@ -15,6 +15,12 @@ def _perfis_firefox() -> list[Path]:
     bases = []
     if os.environ.get("APPDATA"):
         bases.append(Path(os.environ["APPDATA"]) / "Mozilla" / "Firefox" / "Profiles")
+    if os.environ.get("LOCALAPPDATA"):
+        # Firefox instalado pela Microsoft Store guarda o perfil dentro do pacote.
+        pacotes = Path(os.environ["LOCALAPPDATA"]) / "Packages"
+        if pacotes.exists():
+            for pacote in pacotes.glob("Mozilla.Firefox*"):
+                bases.append(pacote / "LocalCache" / "Roaming" / "Mozilla" / "Firefox" / "Profiles")
     bases.append(Path.home() / ".mozilla" / "firefox")
     bases.append(Path.home() / "Library" / "Application Support" / "Firefox" / "Profiles")
     achados = [c for b in bases if b.exists() for c in b.glob("*/cookies.sqlite")]
@@ -50,15 +56,25 @@ def _salvar(cfg: Config, L, usuario: str) -> str:
 
 
 def importar_firefox(cfg: Config) -> str:
-    for cookies in _perfis_firefox():
+    perfis = _perfis_firefox()
+    if not perfis:
+        raise SessaoInvalida("Não encontrei o Firefox neste computador.")
+    achou_sessao = False
+    for cookies in perfis:
         valores = _ler_cookies(cookies)
         if "sessionid" not in valores:
             continue
+        achou_sessao = True
         L = novo_instaloader()
         L.context._session.cookies.update(valores)
         usuario = L.test_login()
         if usuario:
             return _salvar(cfg, L, usuario)
+    if achou_sessao:
+        raise SessaoInvalida(
+            "Achei o login do Instagram no Firefox, mas o Instagram não aceitou a sessão. "
+            "Saia e entre de novo no instagram.com pelo Firefox, ou espere alguns minutos e tente outra vez."
+        )
     raise SessaoInvalida("Nenhum login do Instagram encontrado no Firefox.")
 
 

@@ -81,3 +81,26 @@ def test_login_interativo_salva_usuario_canonico(cfg, monkeypatch):
     monkeypatch.setattr(login, "novo_instaloader", LInterativo)
     assert login.login_interativo(cfg, "JoaoP") == "joao"
     assert (cfg.pasta_app / "usuario.txt").read_text(encoding="utf-8") == "joao"
+
+
+def test_firefox_da_microsoft_store(cfg, monkeypatch, tmp_path):
+    local = tmp_path / "localappdata"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    roaming = local / "Packages" / "Mozilla.Firefox_n80bbvh6b1yt2" / "LocalCache" / "Roaming"
+    criar_firefox(roaming, [("sessionid", "s1", ".instagram.com")])
+    monkeypatch.setattr(login, "novo_instaloader", LFalso)
+    assert login.importar_firefox(cfg) == "joao"
+
+
+def test_mensagem_sem_firefox(cfg, monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "vazio"))
+    monkeypatch.setattr(login.Path, "home", lambda: tmp_path / "home")
+    with pytest.raises(SessaoInvalida, match="Não encontrei o Firefox"):
+        login.importar_firefox(cfg)
+
+
+def test_mensagem_instagram_recusou(cfg, monkeypatch):
+    criar_firefox(cfg.pasta_app.parent, [("sessionid", "outro", ".instagram.com")])
+    monkeypatch.setattr(login, "novo_instaloader", LFalso)
+    with pytest.raises(SessaoInvalida, match="o Instagram não aceitou"):
+        login.importar_firefox(cfg)
