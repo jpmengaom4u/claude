@@ -205,3 +205,10 @@ def test_instaloader_deslogado_vira_sessao_invalida(bib, cfg, monkeypatch):
         "Redirected to login page. You've been logged out, please wait some time, recreate the session and try again"))
     with pytest.raises(SessaoInvalida):
         rodar(bib, fonte, cfg)
+
+
+def test_progresso_do_download(bib, cfg):
+    passos = []
+    sincronizar_downloads(bib, FonteFalsa([remoto(f"P{i:02d}") for i in range(5)]), cfg, limite=3,
+                          espera=lambda s: None, progresso=passos.append)
+    assert passos == ["Baixando 1/3…", "Baixando 2/3…", "Baixando 3/3…"]

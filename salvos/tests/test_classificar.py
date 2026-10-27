@@ -187,3 +187,11 @@ def test_lote_repassa_reservas(bib, adicionar, post_exemplo, ia_falsa):
     ia = ia_falsa(chat=[resposta_lote({"A": "IA"})])
     classificar_pendentes(bib, ia, LIVRE, reservas=["r1:free"])
     assert ia.reservas_usadas == ["r1:free"]
+
+
+def test_progresso_da_classificacao_em_lote(bib, adicionar, post_exemplo, ia_falsa):
+    preparar(bib, adicionar, post_exemplo, *[dict(shortcode=f"P{i}", data=f"2026-01-0{i}") for i in range(1, 4)])
+    responder = lambda msgs: resposta_lote({i: "IA" for i in ids_enviados(msgs)})
+    passos = []
+    classificar_pendentes(bib, ia_falsa(chat=[responder, responder]), LIVRE, tamanho_lote=2, progresso=passos.append)
+    assert passos == ["Classificando lote 1/2…", "Classificando lote 2/2…"]

@@ -28,6 +28,26 @@ MSG_REVISAR = "Há {n} posts em Outros. Rode `salvos nichos --revisar` para suge
 LIMIAR_OUTROS = 10
 
 
+class _Linha:
+    """Contador que se reescreve na mesma linha do terminal."""
+
+    def __init__(self):
+        self._largura = 0
+
+    def atualizar(self, texto: str) -> None:
+        print("\r" + texto.ljust(self._largura), end="", flush=True)
+        self._largura = len(texto)
+
+    def aviso(self, texto: str) -> None:
+        self.fechar()
+        print(texto)
+
+    def fechar(self) -> None:
+        if self._largura:
+            print()
+            self._largura = 0
+
+
 def _usuario(cfg: Config) -> str:
     arq = cfg.pasta_app / "usuario.txt"
     if not arq.exists():
@@ -41,7 +61,11 @@ def _ia(cfg: Config) -> ClienteIA:
 
 def _classificar(bib: Biblioteca, cfg: Config) -> tuple[int, int]:
     """Classifica os pendentes e imprime os avisos. Retorna (classificados, código de saída)."""
-    r = classificar_pendentes(bib, _ia(cfg), cfg.modelo_classificacao, cfg.tamanho_lote, cfg.modelos_reserva)
+    linha = _Linha()
+    r = classificar_pendentes(
+        bib, _ia(cfg), cfg.modelo_classificacao, cfg.tamanho_lote, cfg.modelos_reserva, progresso=linha.atualizar
+    )
+    linha.fechar()
     if r.sem_nichos:
         print(MSG_SEM_NICHOS)
         return 0, 0
@@ -78,7 +102,14 @@ def cmd_sync(cfg: Config, args) -> int:
     try:
         fonte = FonteInstaloader(cfg, _usuario(cfg))
         print("Baixando salvos…")
-        r = sincronizar_downloads(bib, fonte, cfg, completo=args.completo, limite=args.limite)
+        linha = _Linha()
+        try:
+            r = sincronizar_downloads(
+                bib, fonte, cfg, completo=args.completo, limite=args.limite,
+                aviso=linha.aviso, progresso=linha.atualizar,
+            )
+        finally:
+            linha.fechar()
         novos = r.novos
         if r.pausado:
             print(MSG_PAUSA)
@@ -93,7 +124,13 @@ def cmd_sync(cfg: Config, args) -> int:
     if bib.pendentes("transcrito"):
         print("Transcrevendo vídeos… (na primeira vez, o modelo do Whisper é baixado)")
         try:
-            transcritos = transcrever_pendentes(bib, transcritor_whisper(cfg))
+            linha = _Linha()
+            try:
+                transcritos = transcrever_pendentes(
+                    bib, transcritor_whisper(cfg), aviso=linha.aviso, progresso=linha.atualizar
+                )
+            finally:
+                linha.fechar()
         except Exception as e:
             print(f"Não foi possível transcrever agora ({e}). Os vídeos ficam para o próximo sync.")
 

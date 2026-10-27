@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from typing import Callable
 
 from .biblioteca import OUTROS, Biblioteca
 from .ia import ClienteIA, ErroFatalIA, ErroIA, LimiteIA
@@ -104,11 +105,13 @@ def _ler_resposta_lote(texto: str) -> dict:
     return dados if isinstance(dados, dict) else {}
 
 
-def _em_lote(bib, ia, modelo, pendentes, opcoes, tamanho_lote, reservas) -> tuple[int, str | None]:
+def _em_lote(bib, ia, modelo, pendentes, opcoes, tamanho_lote, reservas, progresso) -> tuple[int, str | None]:
     lista = "\n".join(f"- {nome}: {descricao}" for nome, descricao in opcoes.items())
     sistema = INSTRUCOES_LOTE.format(nichos=lista)
     feitos = 0
+    total_lotes = -(-len(pendentes) // tamanho_lote)
     for i in range(0, len(pendentes), tamanho_lote):
+        progresso(f"Classificando lote {i // tamanho_lote + 1}/{total_lotes}…")
         lote = pendentes[i : i + tamanho_lote]
         posts = [
             {"id": p.shortcode, **json.loads(state_do_post(p, bib.transcricao(p.shortcode), LIMITE_STATE_LOTE))}
@@ -142,6 +145,7 @@ def classificar_pendentes(
     modelo: str,
     tamanho_lote: int = 25,
     reservas: list[str] | None = None,
+    progresso: Callable[[str], None] = lambda texto: None,
 ) -> ResultadoClassificacao:
     nichos = bib.nichos()
     if not nichos:
@@ -161,7 +165,7 @@ def classificar_pendentes(
     if modelo.startswith("typesafe/"):
         feitos, parado_por = _por_post(bib, ia, modelo, pendentes, opcoes)
     else:
-        feitos, parado_por = _em_lote(bib, ia, modelo, pendentes, opcoes, max(1, tamanho_lote), reservas)
+        feitos, parado_por = _em_lote(bib, ia, modelo, pendentes, opcoes, max(1, tamanho_lote), reservas, progresso)
     return ResultadoClassificacao(
         classificados=feitos,
         em_outros=bib.contagem().get(OUTROS, 0),

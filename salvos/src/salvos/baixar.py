@@ -82,6 +82,7 @@ def sincronizar_downloads(
     limite: int | None = None,
     espera: Callable[[float], None] = time.sleep,
     aviso: Callable[[str], None] = print,
+    progresso: Callable[[str], None] = lambda texto: None,
 ) -> ResultadoDownload:
     """Baixa os salvos novos.
 
@@ -116,6 +117,7 @@ def sincronizar_downloads(
                 continue
             falhas_seguidas = 0
             novos += 1
+            progresso(f"Baixando {novos}/{maximo}…")
             if novos >= maximo:
                 break
         else:
