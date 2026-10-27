@@ -55,8 +55,11 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .item-nicho:hover { background: var(--fundo); }
 .item-nicho.ativo { background: var(--destaque-fundo); color: var(--destaque); font-weight: 600; }
-.item-nicho .num { color: var(--suave); font-variant-numeric: tabular-nums; font-size: 13px; }
-.item-nicho .num.alerta { color: var(--selo); font-weight: 600; }
+.item-nicho .nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-nicho .num { flex: none; color: var(--suave); font-variant-numeric: tabular-nums; font-size: 13px; }
+.item-nicho .num.alerta {
+  background: var(--selo); color: #fff; font-weight: 600; border-radius: 999px; padding: 0 8px;
+}
 .separador { height: 1px; background: var(--borda); margin: 6px 4px; }
 .novo-nicho {
   margin-top: auto; padding: 8px 10px; border: 1px dashed var(--borda); border-radius: 8px;
@@ -98,8 +101,8 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   text-align: left; padding: 0;
 }
 .card:hover { border-color: var(--destaque); }
-.card-capa { position: relative; aspect-ratio: 4 / 5; background: var(--fundo); }
-.card-capa img, .card-capa video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card-capa { position: relative; flex: none; aspect-ratio: 4 / 5; overflow: hidden; background: var(--fundo); }
+.card-capa img, .card-capa video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .card-icone {
   position: absolute; top: 8px; right: 8px; background: rgb(0 0 0 / 55%); color: #fff;
   border-radius: 6px; padding: 1px 7px; font-size: 12px;
@@ -108,14 +111,21 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   position: absolute; top: 8px; left: 8px; background: var(--selo); color: #fff;
   border-radius: 6px; padding: 1px 7px; font-size: 12px; font-weight: 600;
 }
-.card-corpo { padding: 10px 12px 12px; }
-.card-autor { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.card-corpo { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.card-autor { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-data { color: var(--suave); font-size: 12px; }
+.card-nicho {
+  align-self: flex-start; max-width: 100%; margin-top: 4px; padding: 1px 8px; border-radius: 999px;
+  background: var(--destaque-fundo); color: var(--destaque); font-size: 11px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .card-legenda {
-  margin: 6px 0 0; font-size: 13px; color: var(--suave);
+  margin: 6px 0 0; font-size: 13px; color: var(--suave); min-height: calc(2 * 1.45em);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.vazio { color: var(--suave); text-align: center; margin-top: 60px; }
+.card-legenda.vazia { font-style: italic; opacity: 0.7; }
+.vazio, .fim-grade { color: var(--suave); text-align: center; margin-top: 60px; }
+.fim-grade { margin-top: 24px; font-size: 13px; }
 
 .detalhe {
   width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0;
