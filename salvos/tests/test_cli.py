@@ -272,3 +272,26 @@ def test_sync_padrao_classifica_em_lote_com_modelo_gratuito(ambiente, capsys):
     assert len(ia.chamadas_chat) == 1 and ia.chamadas_escolher == []
     assert ia.chamadas_chat[0][0].endswith(":free")
     assert "Classificados: 2" in capsys.readouterr().out
+
+
+def test_sync_mostra_progresso_na_mesma_linha(ambiente, capsys):
+    cfg, _ = ambiente
+    com_nichos(cfg)
+    FonteFalsa.posts = [remoto("A"), remoto("B", "video")]
+    cli.main(["sync"])
+    out = capsys.readouterr().out
+    assert "\rBaixando 1/150…" in out and "\rBaixando 2/150…" in out
+    assert "\rTranscrevendo 1/1…" in out
+    # O resumo final começa numa linha própria, sem restos do contador.
+    assert "\nNovos: 2 · Transcritos: 1 · Classificados: 2" in out
+
+
+def test_aviso_durante_progresso_comeca_em_linha_nova(capsys):
+    linha = cli._Linha()
+    linha.atualizar("Baixando 1/150…")
+    linha.aviso("Falha ao baixar X")
+    linha.atualizar("Baixando 2/150…")
+    linha.fechar()
+    out = capsys.readouterr().out
+    assert "Baixando 1/150…\nFalha ao baixar X\n" in out
+    assert out.endswith("Baixando 2/150…\n")

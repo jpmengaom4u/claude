@@ -71,9 +71,12 @@ def transcrever_pendentes(
     bib: Biblioteca,
     transcrever: Transcritor,
     aviso: Callable[[str], None] = print,
+    progresso: Callable[[str], None] = lambda texto: None,
 ) -> int:
     feitos = 0
-    for post in bib.pendentes("transcrito"):
+    pendentes = bib.pendentes("transcrito")
+    for n, post in enumerate(pendentes, start=1):
+        progresso(f"Transcrevendo {n}/{len(pendentes)}…")
         videos = [bib.pasta(post.shortcode) / a for a in post.arquivos if a.endswith(".mp4")]
         try:
             partes = [transcrever(v) for v in videos]

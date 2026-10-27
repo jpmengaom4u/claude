@@ -121,3 +121,9 @@ def test_transcritor_whisper_passa_array_e_nao_caminho(tmp_path, monkeypatch, cf
     assert not isinstance(recebidos[0], (str, bytes)) and len(recebidos[0]) > 0
     assert t(_mp4(tmp_path / "mudo.mp4", com_audio=False, com_video=True)) == ""
     assert len(recebidos) == 1  # vídeo mudo nem chega ao modelo
+
+
+def test_progresso_da_transcricao(bib):
+    passos = []
+    transcrever_pendentes(bib, lambda c: "ok", aviso=lambda m: None, progresso=passos.append)
+    assert passos == ["Transcrevendo 1/2…", "Transcrevendo 2/2…"]
